@@ -86,22 +86,11 @@ export default function AdminPage() {
     })
   }, [authenticated])
 
-  async function login(event: React.FormEvent) {
+  function login(event: React.FormEvent) {
     event.preventDefault()
-
-    if (!hasSupabase || !supabase) {
-      setError("Admin authentication is not configured. Add Supabase credentials first.")
-      return
-    }
 
     const normalizedNumber = adminNumber.replace(/\s/g, "").replace(/^0/, "+212")
     if (normalizedNumber !== ADMIN_PHONE || password !== ADMIN_PASSWORD) {
-      setError("Invalid admin number or password")
-      return
-    }
-
-    const { error: authError } = await supabase.auth.signInWithPassword({ phone: normalizedNumber, password: ADMIN_PASSWORD })
-    if (authError) {
       setError("Invalid admin number or password")
       return
     }
