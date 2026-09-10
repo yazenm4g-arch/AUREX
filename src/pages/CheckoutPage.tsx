@@ -28,6 +28,7 @@ const MOROCCAN_CITIES = [
   'Casablanca', 'Rabat', 'Marrakech', 'Fès', 'Tanger', 'Agadir', 'Meknès',
   'Oujda', 'Kénitra', 'Tétouan', 'Safi', 'El Jadida', 'Beni Mellal',
   'Nador', 'Mohammédia', 'Khouribga', 'Berrechid', 'Taza', 'Settat',
+  'Oued Zem',
 ];
 
 function validate(data: FormData, t: Record<string, string>): FormErrors {
@@ -55,7 +56,7 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [deliveryFee, setDeliveryFee] = useState(0);
-  const [whatsappNumber, setWhatsappNumber] = useState(import.meta.env.VITE_WHATSAPP_NUMBER || '0603821176');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
 
   useEffect(() => {
     if (supabase) supabase.from('store_settings').select('delivery_fee, whatsapp_number').eq('id', true).maybeSingle().then(({ data }) => { if (data) { setDeliveryFee(Number(data.delivery_fee) || 0); setWhatsappNumber(data.whatsapp_number || ''); } });
@@ -170,14 +171,17 @@ export default function CheckoutPage() {
                 {/* City */}
                 <div>
                   <label className="block text-[10px] tracking-[0.2em] text-[#1C1C1C]/50 font-[Outfit] uppercase mb-2">{t.city} *</label>
-                  <select
+                  <input
+                    list="moroccan-cities"
+                    type="text"
                     value={form.city}
                     onChange={e => handleChange('city', e.target.value)}
-                    className={`${inputClass('city')} bg-transparent cursor-pointer`}
-                  >
-                    <option value="" disabled>{t.city}</option>
+                    className={`${inputClass('city')} cursor-text`}
+                    placeholder={t.city}
+                  />
+                  <datalist id="moroccan-cities">
                     {MOROCCAN_CITIES.map(city => <option key={city} value={city}>{city}</option>)}
-                  </select>
+                  </datalist>
                   {errors.city && <p className="text-red-400 text-xs mt-1 font-[Outfit]">{errors.city}</p>}
                 </div>
 
