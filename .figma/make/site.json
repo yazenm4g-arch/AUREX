@@ -1,0 +1,10 @@
+{
+  "description": "Premium e-commerce platform offering a clean, responsive catalog of luxury watches for men and women in Morocco with multilingual support and cash on delivery.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
