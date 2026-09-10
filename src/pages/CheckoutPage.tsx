@@ -91,14 +91,16 @@ export default function CheckoutPage() {
     }
     setSubmitError('');
     setSubmitting(true);
-    const whatsappWindow = whatsappNumber ? window.open('', '_blank', 'noopener,noreferrer') : null;
     createOrder(currentItems, form, deliveryFee).then(result => {
       currentItems.forEach(item => updateProduct({ ...item.product, stock: item.product.stock - item.quantity, inStock: item.product.stock - item.quantity > 0 }));
       const whatsappUrl = buildWhatsAppUrl(whatsappNumber, result.orderNumber, currentItems, form, result.deliveryFee, result.total, lang);
-      if (whatsappWindow) whatsappWindow.location.href = whatsappUrl;
       localStorage.setItem('aurex-last-order', JSON.stringify({ orderNumber: result.orderNumber, form, whatsappUrl }));
       clearCart();
-      navigate('/order-confirmed', { state: { orderNumber: result.orderNumber, form, whatsappUrl } });
+      if (whatsappNumber) {
+        window.location.href = whatsappUrl;
+      } else {
+        navigate('/order-confirmed', { state: { orderNumber: result.orderNumber, form, whatsappUrl } });
+      }
     }).catch(() => {
       setSubmitError(lang === 'ar' ? 'تعذر حفظ الطلب.' : lang === 'fr' ? 'Impossible d’enregistrer la commande.' : 'Could not save the order.');
       setSubmitting(false);

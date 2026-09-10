@@ -52,7 +52,7 @@ export default function OrderConfirmedPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          {state.whatsappUrl && <a href={state.whatsappUrl} target="_blank" rel="noreferrer" className="bg-[#25D366] text-[#0b2d18] px-8 py-4 text-sm tracking-[0.12em] font-[Outfit] font-medium hover:bg-[#1fb85a] transition-colors">{t.openWhatsapp.toUpperCase()}</a>}
+          {state.whatsappUrl && <a href={state.whatsappUrl} className="bg-[#25D366] text-[#0b2d18] px-8 py-4 text-sm tracking-[0.12em] font-[Outfit] font-medium hover:bg-[#1fb85a] transition-colors">{t.openWhatsapp.toUpperCase()}</a>}
           <Link
             to="/"
             className="bg-[#1C1C1C] text-white px-8 py-4 text-sm tracking-[0.15em] font-[Outfit] hover:bg-[#C4A265] hover:text-[#1C1C1C] transition-colors"
