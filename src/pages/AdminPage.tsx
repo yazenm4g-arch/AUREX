@@ -13,6 +13,9 @@ import { supabase, hasSupabase } from "../lib/supabase"
 
 import AdminSettings from "../components/AdminSettings"
 
+const ADMIN_PHONE = "+212603821176"
+const ADMIN_PASSWORD = "XLCX6E6ndi"
+
 const blankProduct: Product = {
   id: "",
   ref: "",
@@ -60,7 +63,9 @@ export default function AdminPage() {
     if (!hasSupabase || !supabase) return
 
     supabase.auth.getUser().then(({ data }) => {
-      const isAdmin = data.user?.app_metadata?.role === "admin" || data.user?.user_metadata?.role === "admin"
+      const userPhone = data.user?.phone?.replace(/\D/g, "")
+      const isCorrectPhone = userPhone === "212603821176"
+      const isAdmin = isCorrectPhone && (data.user?.app_metadata?.role === "admin" || data.user?.user_metadata?.role === "admin")
       setAuthenticated(isAdmin)
       if (isAdmin) navigate("/admin", { replace: true })
     })
@@ -90,7 +95,12 @@ export default function AdminPage() {
     }
 
     const normalizedNumber = adminNumber.replace(/\s/g, "").replace(/^0/, "+212")
-    const { error: authError } = await supabase.auth.signInWithPassword({ phone: normalizedNumber, password })
+    if (normalizedNumber !== ADMIN_PHONE || password !== ADMIN_PASSWORD) {
+      setError("Invalid admin number or password")
+      return
+    }
+
+    const { error: authError } = await supabase.auth.signInWithPassword({ phone: normalizedNumber, password: ADMIN_PASSWORD })
     if (authError) {
       setError("Invalid admin number or password")
       return
