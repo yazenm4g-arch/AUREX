@@ -63,6 +63,8 @@ export function buildWhatsAppUrl(number: string, orderNumber: string, items: Car
     `${copy.address}: ${customer.address}`,
     customer.note ? `${copy.note}: ${customer.note}` : '',
   ].filter(Boolean);
-  const normalizedNumber = number.replace(/[^0-9]/g, '');
-  return `https://wa.me/${normalizedNumber}?text=${encodeURIComponent(lines.join('\n'))}`;
+  const digits = number.replace(/[^0-9]/g, '');
+  const normalizedNumber = digits.replace(/^0+/, '') || digits;
+  const international = normalizedNumber.startsWith('212') ? normalizedNumber : `212${normalizedNumber}`;
+  return `https://wa.me/${international}?text=${encodeURIComponent(lines.join('\n'))}`;
 }
