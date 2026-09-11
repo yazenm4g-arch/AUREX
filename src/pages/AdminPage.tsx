@@ -3,8 +3,6 @@ import { useLocation, useNavigate } from "react-router"
 
 import { useProducts } from "../context/ProductContext"
 
-import { readOrders, writeOrders } from "../data/orders"
-
 import type { Order, OrderStatus } from "../data/orders"
 
 import type { Product } from "../data/products"
@@ -12,9 +10,6 @@ import type { Product } from "../data/products"
 import { supabase, hasSupabase } from "../lib/supabase"
 
 import AdminSettings from "../components/AdminSettings"
-
-const ADMIN_PHONE = "+212603821176"
-const ADMIN_PASSWORD = "XLCX6E6ndi"
 
 const blankProduct: Product = {
   id: "",
@@ -46,30 +41,24 @@ export default function AdminPage() {
 
   const [authenticated, setAuthenticated] = useState(false)
 
-  const [adminNumber, setAdminNumber] = useState("")
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
 
   const [editing, setEditing] = useState<Product | null>(null)
 
-  const [orders, setOrders] = useState<Order[]>(readOrders)
+  const [orders, setOrders] = useState<Order[]>([])
 
   const [error, setError] = useState("")
 
   useEffect(() => {
-    if (!authenticated && location.pathname === "/admin") {
-      navigate("/admin/login", { replace: true })
-      return
-    }
-    if (!hasSupabase || !supabase) return
-
+    if (!hasSupabase || !supabase) { setError('Supabase is not configured. Admin changes cannot be saved.'); return; }
     supabase.auth.getUser().then(({ data }) => {
-      const userPhone = data.user?.phone?.replace(/\D/g, "")
-      const isCorrectPhone = userPhone === "212603821176"
-      const isAdmin = isCorrectPhone && (data.user?.app_metadata?.role === "admin" || data.user?.user_metadata?.role === "admin")
-      setAuthenticated(isAdmin)
-      if (isAdmin) navigate("/admin", { replace: true })
-    })
-  }, [authenticated, location.pathname, navigate])
+      const isAdmin = data.user?.app_metadata?.role === 'admin';
+      setAuthenticated(isAdmin);
+      if (!isAdmin && location.pathname === '/admin') navigate('/admin/login', { replace: true });
+    });
+  }, [location.pathname, navigate])
 
   useEffect(() => {
     if (!hasSupabase || !supabase || !authenticated) return
@@ -80,23 +69,33 @@ export default function AdminPage() {
         createdAt: order.created_at,
         status: (order.status === "new" ? "pending" : order.status) as OrderStatus,
         customer: order.customer,
-        items: (order.order_items || []).map((item) => ({ product: item.product_snapshot, quantity: item.quantity })),
+        items: (order.order_items || []).map((item: { product_snapshot: Product; quantity: number }) => ({ product: item.product_snapshot, quantity: item.quantity })),
         total: Number(order.total),
       })))
     })
   }, [authenticated])
 
-  function login(event: React.FormEvent) {
+  async function login(event: React.FormEvent) {
     event.preventDefault()
 
-    const normalizedNumber = adminNumber.replace(/\s/g, "").replace(/^0/, "+212")
-    if (normalizedNumber !== ADMIN_PHONE || password !== ADMIN_PASSWORD) {
-      setError("Invalid admin number or password")
-      return
-    }
+    if (!supabase) { setError('Supabase is not configured.'); return; }
+    setError('');
+    setIsLoggingIn(true)
 
-    setAuthenticated(true)
-    navigate("/admin", { replace: true })
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+      if (authError) { setError(authError.message); return; }
+      if (data.user?.app_metadata?.role !== 'admin') {
+        await supabase.auth.signOut()
+        setError('This account does not have administrator access.')
+        return
+      }
+
+      setAuthenticated(true)
+      navigate('/admin', { replace: true })
+    } finally {
+      setIsLoggingIn(false)
+    }
   }
 
   if (!authenticated) {
@@ -113,18 +112,17 @@ export default function AdminPage() {
             AUREX Admin
           </h1>
           <input
-            aria-label="Admin number"
-            type="tel"
-            inputMode="numeric"
-            autoComplete="username"
+            aria-label="Email address"
+            type="email"
+            autoComplete="email"
             required
-            value={adminNumber}
-            onChange={(event) => setAdminNumber(event.target.value)}
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
             className="w-full bg-transparent border-b border-white/30 py-3 outline-none mb-4"
-            placeholder="0603821176"
+            placeholder="admin@example.com"
           />
           <input
-            aria-label="Admin password"
+            aria-label="Password"
             type="password"
             required
             value={password}
@@ -133,8 +131,8 @@ export default function AdminPage() {
             className="w-full bg-transparent border-b border-white/30 py-3 outline-none mb-4"
             placeholder="Password"
           />
-          <button className="w-full bg-[#C4A265] text-[#1C1C1C] py-3 disabled:opacity-50">
-            LOGIN
+          <button disabled={isLoggingIn} className="w-full bg-[#C4A265] text-[#1C1C1C] py-3 disabled:opacity-50">
+            {isLoggingIn ? 'SIGNING IN…' : 'SIGN IN'}
           </button>
           {error && (
             <p role="alert" className="text-red-300 text-sm mt-3">
@@ -173,7 +171,7 @@ export default function AdminPage() {
       return
     }
 
-    setEditing(null)
+        setEditing(null)
     setError("")
   }
 
@@ -186,27 +184,22 @@ export default function AdminPage() {
           if (supabase) {
             const path = `${editing.id}/${crypto.randomUUID()}-${file.name}`
             const { error: uploadError } = await supabase.storage.from("product-images").upload(path, file, { upsert: true })
-            if (!uploadError) return supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl
+            if (uploadError) throw uploadError;
+            return supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl
           }
-          return new Promise<string>((resolve) => {
-            const reader = new FileReader()
-            reader.onload = () => resolve(String(reader.result))
-            reader.readAsDataURL(file)
-          })
+          throw new Error('Supabase is not configured. Images cannot be stored.');
         },
       ),
     )
     setEditing((previous) => previous ? { ...previous, images: [...previous.images, ...images] } : previous)
   }
 
-  function updateStatus(order: Order, status: OrderStatus) {
-    const next = orders.map((item) =>
-      item.id === order.id ? { ...item, status } : item,
-    )
-
-    setOrders(next)
-    writeOrders(next)
-    if (supabase) supabase.from("orders").update({ status: status === "pending" ? "new" : status }).eq("order_number", order.id)
+  async function updateStatus(order: Order, status: OrderStatus) {
+    try {
+      const { error: updateError } = await supabase!.rpc('admin_update_order_status', { p_order_number: order.id, p_status: status === 'pending' ? 'new' : status });
+      if (updateError) throw updateError;
+      setOrders(previous => previous.map(item => item.id === order.id ? { ...item, status } : item));
+    } catch (err) { setError(err instanceof Error ? err.message : 'Could not update order status.'); }
   }
 
   return (
@@ -235,7 +228,7 @@ export default function AdminPage() {
             <h2 className="text-xl">Watches</h2>
             <button
               onClick={() =>
-                setEditing({ ...blankProduct, id: `p${Date.now()}` })
+                setEditing({ ...blankProduct, id: crypto.randomUUID() })
               }
               className="bg-[#1C1C1C] text-white px-4 py-3"
             >
@@ -269,7 +262,7 @@ export default function AdminPage() {
                     EDIT
                   </button>
                   <button
-                    onClick={() => deleteProduct(product.id)}
+                    onClick={async () => { try { await deleteProduct(product.id); } catch (err) { setError(err instanceof Error ? err.message : 'Could not delete product.'); } }}
                     className="text-sm text-red-600 underline"
                   >
                     DELETE

@@ -1,12 +1,24 @@
--- Run this only after creating the first Supabase Auth user in the Dashboard.
--- Create the user with phone +212603821176 and the password you choose privately.
--- Then run this script in Supabase SQL Editor to grant the admin role.
+-- Run this script in the Supabase SQL Editor AFTER creating the first admin user.
+--
+-- How to create the admin user (Supabase Dashboard → Authentication → Users):
+--   1. Click "Add user".
+--   2. Enter the administrator's email address and a strong password.
+--   3. Confirm the email address (or enable email confirmation and have the user confirm it).
+--
+-- Replace the email below with that administrator's email, then run this script to grant the admin role.
 
 update auth.users
 set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || '{"role":"admin"}'::jsonb
-where phone = '+212603821176';
+where email = 'admin@example.com';
 
--- Verify the setup without exposing the password:
-select id, phone, phone_confirmed_at, raw_app_meta_data ->> 'role' as role
+-- Verify the setup (password is never exposed):
+select
+  id,
+  email,
+  email_confirmed_at,
+  raw_app_meta_data ->> 'role' as role,
+  raw_app_meta_data as app_metadata
 from auth.users
-where phone = '+212603821176';
+where email = 'admin@example.com';
+
+-- Expected result: role = 'admin'
