@@ -142,7 +142,7 @@ begin
     insert into public.order_items (order_id, product_id, product_snapshot, quantity, unit_price) values (order_id, current_product.id, to_jsonb(current_product), (item->>'quantity')::integer, current_product.price);
     update public.products set stock = stock - (item->>'quantity')::integer, status = case when stock - (item->>'quantity')::integer <= 0 then 'out_of_stock'::product_status when stock - (item->>'quantity')::integer <= 2 then 'low_stock'::product_status else 'in_stock'::product_status end, updated_at = now() where id = current_product.id;
   end loop;
-  return jsonb_build_object('id', order_id, 'order_number', order_number, 'delivery_fee', fee, 'total', total);
+  return jsonb_build_object('id', order_id, 'order_number', order_number, 'delivery_fee', fee, 'total', total, 'whatsapp_number', (select whatsapp_number from public.store_settings where id = true));
 end;
 $$;
 
@@ -164,6 +164,7 @@ declare
   current_about jsonb;
   current_contact jsonb;
 begin
+  if not public.is_admin() then raise exception 'ADMIN_UNAUTHORIZED'; end if;
   if p_delivery_fee is null or p_delivery_fee < 0 then
     raise exception 'INVALID_DELIVERY_FEE';
   end if;
@@ -190,7 +191,8 @@ begin
 end;
 $$;
 
-grant execute on function public.admin_upsert_store_settings(numeric, text, jsonb, jsonb) to anon, authenticated;
+revoke execute on function public.admin_upsert_store_settings(numeric, text, jsonb, jsonb) from public, anon;
+grant execute on function public.admin_upsert_store_settings(numeric, text, jsonb, jsonb) to authenticated;
 
 -- Admin: insert product (security definer to bypass RLS)
 create or replace function public.admin_insert_product(
@@ -215,6 +217,7 @@ security definer
 set search_path = public
 as $$
 begin
+  if not public.is_admin() then raise exception 'ADMIN_UNAUTHORIZED'; end if;
   if p_ref is null or trim(p_ref) = '' then
     raise exception 'INVALID_REF';
   end if;
@@ -235,7 +238,8 @@ begin
 end;
 $$;
 
-grant execute on function public.admin_insert_product(uuid, text, jsonb, jsonb, jsonb, jsonb, public.product_category, numeric, numeric, integer, public.product_status, boolean, boolean, boolean) to anon, authenticated;
+revoke execute on function public.admin_insert_product(uuid, text, jsonb, jsonb, jsonb, jsonb, public.product_category, numeric, numeric, integer, public.product_status, boolean, boolean, boolean) from public, anon;
+grant execute on function public.admin_insert_product(uuid, text, jsonb, jsonb, jsonb, jsonb, public.product_category, numeric, numeric, integer, public.product_status, boolean, boolean, boolean) to authenticated;
 
 -- Admin: update product (security definer to bypass RLS)
 create or replace function public.admin_update_product(
@@ -260,6 +264,7 @@ security definer
 set search_path = public
 as $$
 begin
+  if not public.is_admin() then raise exception 'ADMIN_UNAUTHORIZED'; end if;
   if p_ref is null or trim(p_ref) = '' then
     raise exception 'INVALID_REF';
   end if;
@@ -298,7 +303,8 @@ begin
 end;
 $$;
 
-grant execute on function public.admin_update_product(uuid, text, jsonb, jsonb, jsonb, jsonb, public.product_category, numeric, numeric, integer, public.product_status, boolean, boolean, boolean) to anon, authenticated;
+revoke execute on function public.admin_update_product(uuid, text, jsonb, jsonb, jsonb, jsonb, public.product_category, numeric, numeric, integer, public.product_status, boolean, boolean, boolean) from public, anon;
+grant execute on function public.admin_update_product(uuid, text, jsonb, jsonb, jsonb, jsonb, public.product_category, numeric, numeric, integer, public.product_status, boolean, boolean, boolean) to authenticated;
 
 -- Admin: delete product (security definer to bypass RLS)
 create or replace function public.admin_delete_product(p_id uuid)
@@ -308,6 +314,7 @@ security definer
 set search_path = public
 as $$
 begin
+  if not public.is_admin() then raise exception 'ADMIN_UNAUTHORIZED'; end if;
   delete from public.products where id = p_id;
   if not found then
     raise exception 'PRODUCT_NOT_FOUND';
@@ -316,8 +323,30 @@ begin
 end;
 $$;
 
-grant execute on function public.admin_delete_product(uuid) to anon, authenticated;
+revoke execute on function public.admin_delete_product(uuid) from public, anon;
+grant execute on function public.admin_delete_product(uuid) to authenticated;
+
+create or replace function public.admin_update_order_status(p_order_number text, p_status public.order_status)
+returns jsonb language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'ADMIN_UNAUTHORIZED'; end if;
+  update public.orders set status = p_status where order_number = p_order_number;
+  if not found then raise exception 'ORDER_NOT_FOUND'; end if;
+  return jsonb_build_object('ok', true);
+end;
+$$;
+revoke execute on function public.admin_update_order_status(text, public.order_status) from public, anon;
+grant execute on function public.admin_update_order_status(text, public.order_status) to authenticated;
 
 insert into storage.buckets (id, name, public) values ('product-images', 'product-images', true) on conflict (id) do update set public = true;
 create policy "public can read product images" on storage.objects for select using (bucket_id = 'product-images');
 create policy "admins manage product images" on storage.objects for all to authenticated using (bucket_id = 'product-images' and public.is_admin()) with check (bucket_id = 'product-images' and public.is_admin());
+
+do $$ begin
+  alter publication supabase_realtime add table public.products;
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.store_settings;
+exception when duplicate_object then null;
+end $$;
