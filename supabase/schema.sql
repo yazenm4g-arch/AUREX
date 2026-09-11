@@ -148,6 +148,176 @@ $$;
 
 grant execute on function public.place_order(jsonb) to anon, authenticated;
 
+-- Admin: upsert store settings (security definer to bypass RLS)
+create or replace function public.admin_upsert_store_settings(
+  p_delivery_fee numeric,
+  p_whatsapp_number text,
+  p_about_content jsonb default null,
+  p_contact_content jsonb default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_about jsonb;
+  current_contact jsonb;
+begin
+  if p_delivery_fee is null or p_delivery_fee < 0 then
+    raise exception 'INVALID_DELIVERY_FEE';
+  end if;
+  if p_whatsapp_number is null or trim(p_whatsapp_number) = '' then
+    raise exception 'INVALID_WHATSAPP_NUMBER';
+  end if;
+
+  select about_content, contact_content into current_about, current_contact
+  from public.store_settings where id = true;
+
+  insert into public.store_settings (id, delivery_fee, whatsapp_number, about_content, contact_content, updated_at)
+  values (true, p_delivery_fee, p_whatsapp_number,
+          coalesce(p_about_content, current_about, '{}'::jsonb),
+          coalesce(p_contact_content, current_contact, '{}'::jsonb),
+          now())
+  on conflict (id) do update set
+    delivery_fee = p_delivery_fee,
+    whatsapp_number = p_whatsapp_number,
+    about_content = coalesce(p_about_content, current_about, '{}'::jsonb),
+    contact_content = coalesce(p_contact_content, current_contact, '{}'::jsonb),
+    updated_at = now();
+
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.admin_upsert_store_settings(numeric, text, jsonb, jsonb) to anon, authenticated;
+
+-- Admin: insert product (security definer to bypass RLS)
+create or replace function public.admin_insert_product(
+  p_id uuid,
+  p_ref text,
+  p_name jsonb,
+  p_description jsonb,
+  p_specifications jsonb,
+  p_images jsonb,
+  p_category public.product_category,
+  p_price numeric,
+  p_original_price numeric,
+  p_stock integer,
+  p_status public.product_status,
+  p_new_arrival boolean,
+  p_featured boolean,
+  p_bestseller boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_ref is null or trim(p_ref) = '' then
+    raise exception 'INVALID_REF';
+  end if;
+  if p_price is null or p_price < 0 then
+    raise exception 'INVALID_PRICE';
+  end if;
+  if p_stock is null or p_stock < 0 then
+    raise exception 'INVALID_STOCK';
+  end if;
+  if p_original_price is not null and p_original_price <= p_price then
+    raise exception 'INVALID_ORIGINAL_PRICE';
+  end if;
+
+  insert into public.products (id, ref, name, description, specifications, images, category, price, original_price, stock, status, new_arrival, featured, bestseller, created_at, updated_at)
+  values (p_id, p_ref, p_name, p_description, p_specifications, p_images, p_category, p_price, p_original_price, p_stock, coalesce(p_status, 'out_of_stock'), coalesce(p_new_arrival, false), coalesce(p_featured, false), coalesce(p_bestseller, false), now(), now());
+
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.admin_insert_product(uuid, text, jsonb, jsonb, jsonb, jsonb, public.product_category, numeric, numeric, integer, public.product_status, boolean, boolean, boolean) to anon, authenticated;
+
+-- Admin: update product (security definer to bypass RLS)
+create or replace function public.admin_update_product(
+  p_id uuid,
+  p_ref text,
+  p_name jsonb,
+  p_description jsonb,
+  p_specifications jsonb,
+  p_images jsonb,
+  p_category public.product_category,
+  p_price numeric,
+  p_original_price numeric,
+  p_stock integer,
+  p_status public.product_status,
+  p_new_arrival boolean,
+  p_featured boolean,
+  p_bestseller boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_ref is null or trim(p_ref) = '' then
+    raise exception 'INVALID_REF';
+  end if;
+  if p_price is null or p_price < 0 then
+    raise exception 'INVALID_PRICE';
+  end if;
+  if p_stock is null or p_stock < 0 then
+    raise exception 'INVALID_STOCK';
+  end if;
+  if p_original_price is not null and p_original_price <= p_price then
+    raise exception 'INVALID_ORIGINAL_PRICE';
+  end if;
+
+  update public.products
+  set ref = p_ref,
+      name = p_name,
+      description = p_description,
+      specifications = p_specifications,
+      images = p_images,
+      category = p_category,
+      price = p_price,
+      original_price = p_original_price,
+      stock = p_stock,
+      status = coalesce(p_status, 'out_of_stock'),
+      new_arrival = coalesce(p_new_arrival, false),
+      featured = coalesce(p_featured, false),
+      bestseller = coalesce(p_bestseller, false),
+      updated_at = now()
+  where id = p_id;
+
+  if not found then
+    raise exception 'PRODUCT_NOT_FOUND';
+  end if;
+
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.admin_update_product(uuid, text, jsonb, jsonb, jsonb, jsonb, public.product_category, numeric, numeric, integer, public.product_status, boolean, boolean, boolean) to anon, authenticated;
+
+-- Admin: delete product (security definer to bypass RLS)
+create or replace function public.admin_delete_product(p_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.products where id = p_id;
+  if not found then
+    raise exception 'PRODUCT_NOT_FOUND';
+  end if;
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.admin_delete_product(uuid) to anon, authenticated;
+
 insert into storage.buckets (id, name, public) values ('product-images', 'product-images', true) on conflict (id) do update set public = true;
 create policy "public can read product images" on storage.objects for select using (bucket_id = 'product-images');
 create policy "admins manage product images" on storage.objects for all to authenticated using (bucket_id = 'product-images' and public.is_admin()) with check (bucket_id = 'product-images' and public.is_admin());

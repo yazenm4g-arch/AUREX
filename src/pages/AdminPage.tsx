@@ -146,7 +146,7 @@ export default function AdminPage() {
     )
   }
 
-  function saveProduct(event: React.FormEvent) {
+  async function saveProduct(event: React.FormEvent) {
     event.preventDefault()
 
     if (
@@ -163,9 +163,15 @@ export default function AdminPage() {
 
     const normalized = { ...editing, inStock: editing.status !== 'out_of_stock' && editing.status !== 'coming_soon' && editing.stock > 0 }
 
-    if (products.some((product) => product.id === normalized.id))
-      updateProduct(normalized)
-    else addProduct(normalized)
+    try {
+      if (products.some((product) => product.id === normalized.id))
+        await updateProduct(normalized)
+      else
+        await addProduct(normalized)
+    } catch (err) {
+      setError("Failed to save product. Please try again.")
+      return
+    }
 
     setEditing(null)
     setError("")

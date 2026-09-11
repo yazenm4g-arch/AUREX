@@ -1,7 +1,11 @@
 {
-  "description": "Premium e-commerce platform offering a clean, responsive catalog of luxury watches for men and women in Morocco with multilingual support and cash on delivery.",
+  "title": "AUREX",
+  "description": "AUREX — luxury watches for men and women in Morocco. Premium timepieces with cash on delivery and free shipping across Morocco.",
   "robots": {
     "index": false
+  },
+  "icons": {
+    "icon": "/favicon.svg"
   },
   "accessibility": {
     "addBypassLinks": false,
